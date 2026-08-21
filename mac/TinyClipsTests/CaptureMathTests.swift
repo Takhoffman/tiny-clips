@@ -293,46 +293,51 @@ final class CaptureMathTests: XCTestCase {
         )
     }
 
-    func testExportFrameLayoutSnapsToWholePixels() {
-        // Fractional padding and preset ratios must not produce fractional frame
-        // sizes or image origins: sub-pixel slivers at the canvas edge render as
-        // white hairlines in formats without alpha (e.g. JPEG).
-        let cases: [(padding: CGFloat, preset: ExportFramePreset, h: ExportHorizontalAlignment, v: ExportVerticalAlignment)] = [
-            (10.4, .square, .center, .center),
-            (12.75, .landscapeSixteenByNine, .trailing, .bottom),
-            (7.2, .portraitNineBySixteen, .leading, .top),
-            (0.5, .original, .center, .center),
-        ]
+    func testExportFrameLayoutSnapsCenteredImageOriginToWholePixels() {
+        // Padding comes from a `step: 2` slider and the crop rect is `.integral`, so
+        // the only fractional value the export path can produce is a centered origin
+        // when the preset leaves an odd amount of extra space (e.g. 101 / 2 = 50.5).
+        // A half-pixel origin anti-aliases the card edge, which shows as a light
+        // hairline on transparent backgrounds exported to JPEG.
+        let imageSize = CGSize(width: 503, height: 331)
 
-        for testCase in cases {
-            let imageSize = CGSize(width: 503, height: 331)
-            let layout = ExportFrameLayout.make(
-                imageSize: imageSize,
-                padding: testCase.padding,
-                preset: testCase.preset,
-                horizontalAlignment: testCase.h,
-                verticalAlignment: testCase.v
-            )
+        // Extra horizontal space is 624 - 523 = 101 (odd).
+        let landscape = ExportFrameLayout.make(
+            imageSize: imageSize,
+            padding: 10,
+            preset: .landscapeSixteenByNine,
+            horizontalAlignment: .center,
+            verticalAlignment: .center
+        )
+        XCTAssertEqual(landscape.frameSize, CGSize(width: 624, height: 351))
+        XCTAssertEqual(landscape.imageRect.origin, CGPoint(x: 61, y: 10))
 
-            XCTAssertEqual(
-                layout.frameSize.width.rounded(), layout.frameSize.width,
-                "frame width must be integral for padding \(testCase.padding)"
-            )
-            XCTAssertEqual(
-                layout.frameSize.height.rounded(), layout.frameSize.height,
-                "frame height must be integral for padding \(testCase.padding)"
-            )
-            XCTAssertEqual(
-                layout.imageRect.minX.rounded(), layout.imageRect.minX,
-                "image origin x must be integral"
-            )
-            XCTAssertEqual(
-                layout.imageRect.minY.rounded(), layout.imageRect.minY,
-                "image origin y must be integral"
-            )
-            // The image must sit fully inside the frame.
-            XCTAssertTrue(layout.frameSize.width >= layout.imageRect.maxX)
-            XCTAssertTrue(layout.frameSize.height >= layout.imageRect.maxY)
+        // Extra vertical space is 930 - 351 = 579 (odd).
+        let portrait = ExportFrameLayout.make(
+            imageSize: imageSize,
+            padding: 10,
+            preset: .portraitNineBySixteen,
+            horizontalAlignment: .center,
+            verticalAlignment: .center
+        )
+        XCTAssertEqual(portrait.frameSize, CGSize(width: 523, height: 930))
+        XCTAssertEqual(portrait.imageRect.origin, CGPoint(x: 10, y: 300))
+
+        // Even leftover space (523 - 351 = 172) is unchanged by the snap.
+        let square = ExportFrameLayout.make(
+            imageSize: imageSize,
+            padding: 10,
+            preset: .square,
+            horizontalAlignment: .center,
+            verticalAlignment: .center
+        )
+        XCTAssertEqual(square.frameSize, CGSize(width: 523, height: 523))
+        XCTAssertEqual(square.imageRect.origin, CGPoint(x: 10, y: 96))
+
+        for layout in [landscape, portrait, square] {
+            XCTAssertEqual(layout.imageRect.size, imageSize)
+            XCTAssertLessThanOrEqual(layout.imageRect.maxX, layout.frameSize.width)
+            XCTAssertLessThanOrEqual(layout.imageRect.maxY, layout.frameSize.height)
         }
     }
 

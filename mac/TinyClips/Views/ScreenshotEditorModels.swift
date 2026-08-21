@@ -249,11 +249,7 @@ struct ExportFrameLayout {
         horizontalAlignment: ExportHorizontalAlignment,
         verticalAlignment: ExportVerticalAlignment
     ) -> Self {
-        // Snap the layout to whole pixels: fractional frame sizes or image origins
-        // leave sub-pixel slivers at the canvas edges. Those slivers are invisible
-        // in alpha formats but render as white hairlines when exported to JPEG
-        // (which flattens transparency onto white).
-        let safePadding = max(0, padding).rounded(.up)
+        let safePadding = max(0, padding)
         let baseSize = CGSize(
             width: imageSize.width + (safePadding * 2),
             height: imageSize.height + (safePadding * 2)
@@ -267,9 +263,12 @@ struct ExportFrameLayout {
                 frameSize.height = ceil(baseSize.width / targetRatio)
             }
         }
-        frameSize.width = frameSize.width.rounded(.up)
-        frameSize.height = frameSize.height.rounded(.up)
 
+        // Centering an image inside an odd amount of leftover space lands its origin
+        // on a half pixel. Core Graphics then anti-aliases the card edge across two
+        // columns/rows at 50% alpha; on a transparent background exported as JPEG that
+        // semi-transparent edge flattens to a light hairline around the screenshot.
+        // Snap the origin to a whole pixel and keep the card inside the frame.
         let extraHorizontalSpace = max(0, frameSize.width - baseSize.width)
         let extraVerticalSpace = max(0, frameSize.height - baseSize.height)
         let originX = (safePadding + (extraHorizontalSpace * horizontalAlignment.placementFactor))
